@@ -1,0 +1,48 @@
+workflows:
+  android-workflow:
+    name: Lottogenerator Android Build
+    max_build_duration: 120
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        - android_credentials
+      flutter: "3.22.0"
+    cache:
+      cache_paths:
+        - ~/.pub-cache
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+    scripts:
+      - name: Flutter Version prüfen
+        script: |
+          flutter --version
+      - name: Flutter Dependencies installieren
+        script: |
+          flutter pub get
+      - name: Flutter Analyzer ausführen
+        script: |
+          flutter analyze
+      - name: Android APK erstellen
+        script: |
+          flutter build apk --release --verbose
+      - name: Android App Bundle erstellen
+        script: |
+          flutter build appbundle --release --verbose
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
+      - build/app/outputs/bundle/release/app-release.aab
+    publishing:
+      email:
+        recipients:
+          - funatiker1968@gmail.com
+      scripts:
+        - name: Build-Ergebnis
+          script: |
+            echo "✅ Lottogenerator Build abgeschlossen!"
+            echo "📱 APK und AAB wurden erstellt"
+            echo "⚠️  Build ist UNSIGNIERT - Nur für Tests"
