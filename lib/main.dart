@@ -7,10 +7,12 @@ import 'features/home/home_screen.dart';
 import 'widgets/disclaimer_dialog.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -32,7 +34,7 @@ class MyApp extends StatelessWidget {
               future: DisclaimerService.isDisclaimerAccepted(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Scaffold(
+                  return const Scaffold(
                     body: Center(child: CircularProgressIndicator()),
                   );
                 }
@@ -42,17 +44,22 @@ class MyApp extends StatelessWidget {
                   return DisclaimerDialog(
                     onAccepted: () {
                       DisclaimerService.setDisclaimerAccepted(true);
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => HomeScreen()),
-                      );
+                      // Use a delayed navigation to avoid context issues
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (_) => const HomeScreen()),
+                        );
+                      });
                     },
                     onRejected: () {
-                      Future.microtask(() => Navigator.of(context).pop());
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        Navigator.of(context).pop();
+                      });
                     },
                   );
                 }
                 
-                return HomeScreen();
+                return const HomeScreen();
               },
             ),
           );
