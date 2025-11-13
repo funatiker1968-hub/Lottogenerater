@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 class Lotto6aus49Screen extends StatefulWidget {
@@ -11,10 +12,12 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
   final List<List<bool>> _selectedNumbers = List.generate(12, (_) => List.filled(49, false));
   final List<List<int>> _generatedTips = List.generate(12, (_) => []);
   final List<bool> _tipGenerated = List.filled(12, false);
+  final List<int> _currentAnimatingNumbers = List.filled(12, 1); // Start bei 1 für jeden Tipp
   int _scheinSuperzahl = 0;
   bool _superzahlGenerated = false;
   late AnimationController _superzahlAnimationController;
   late List<AnimationController> _tipAnimationControllers;
+  late List<Timer> _animationTimers;
 
   @override
   void initState() {
@@ -25,10 +28,11 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
     );
     _tipAnimationControllers = List.generate(12, (index) => 
       AnimationController(
-        duration: const Duration(milliseconds: 4000),
+        duration: const Duration(milliseconds: 5000),
         vsync: this,
       )
     );
+    _animationTimers = List.generate(12, (_) => Timer(const Duration(seconds: 0), () {}));
   }
 
   @override
@@ -36,6 +40,9 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
     _superzahlAnimationController.dispose();
     for (final controller in _tipAnimationControllers) {
       controller.dispose();
+    }
+    for (final timer in _animationTimers) {
+      timer.cancel();
     }
     super.dispose();
   }
@@ -55,6 +62,47 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
     }
   }
 
+  void _startNumberAnimation(int tipIndex) {
+    final numbers = _generatedTips[tipIndex];
+    if (numbers.isEmpty) return;
+
+    int currentStep = 1;
+    final sortedNumbers = List.from(numbers)..sort();
+    
+    _animationTimers[tipIndex].cancel();
+    
+    void animateStep() {
+      if (currentStep > 49) {
+        // Animation beendet
+        _tipAnimationControllers[tipIndex].forward(from: 1.0);
+        return;
+      }
+
+      setState(() {
+        _currentAnimatingNumbers[tipIndex] = currentStep;
+      });
+
+      // Prüfen ob aktuelle Step-Zahl eine generierte Zahl ist
+      final isTargetNumber = sortedNumbers.contains(currentStep);
+      
+      if (isTargetNumber) {
+        // Bei generierter Zahl länger pausieren (Kreuz erscheint)
+        _animationTimers[tipIndex] = Timer(const Duration(milliseconds: 300), () {
+          currentStep++;
+          animateStep();
+        });
+      } else {
+        // Normale Geschwindigkeit
+        _animationTimers[tipIndex] = Timer(const Duration(milliseconds: 50), () {
+          currentStep++;
+          animateStep();
+        });
+      }
+    }
+
+    animateStep();
+  }
+
   void _generateTip(int tipIndex) async {
     if (_tipGenerated[tipIndex]) {
       // Löschen
@@ -64,13 +112,11 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
         }
         _generatedTips[tipIndex].clear();
         _tipGenerated[tipIndex] = false;
+        _currentAnimatingNumbers[tipIndex] = 1;
+        _tipAnimationControllers[tipIndex].reset();
+        _animationTimers[tipIndex].cancel();
       });
     } else {
-      // Superzahl zuerst generieren (nur einmal pro Schein)
-      if (!_superzahlGenerated) {
-        _generateSuperzahl();
-      }
-
       // Zahlen generieren
       final currentCount = _generatedTips[tipIndex].length;
       final numbersNeeded = 6 - currentCount;
@@ -90,11 +136,11 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
       
       setState(() {
         _tipGenerated[tipIndex] = true;
+        _currentAnimatingNumbers[tipIndex] = 1;
       });
 
-      // Animation mit Verzögerung starten
-      await Future.delayed(Duration(milliseconds: tipIndex * 500));
-      _tipAnimationControllers[tipIndex].forward(from: 0.0);
+      // Animation starten
+      _startNumberAnimation(tipIndex);
     }
   }
 
@@ -105,7 +151,7 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
       await Future.delayed(const Duration(milliseconds: 3200));
     }
 
-    // Dann alle Tipps nacheinander mit Verzögerung
+    // Tipps nacheinander - erst Tipp 1 komplett fertig, dann Tipp 2 usw.
     for (int i = 0; i < 12; i++) {
       if (!_tipGenerated[i]) {
         // Zahlen generieren
@@ -127,11 +173,12 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
         
         setState(() {
           _tipGenerated[i] = true;
+          _currentAnimatingNumbers[i] = 1;
         });
 
-        // Animation mit Verzögerung starten
-        _tipAnimationControllers[i].forward(from: 0.0);
-        await Future.delayed(const Duration(milliseconds: 800));
+        // Animation starten und auf Fertigstellung warten
+        _startNumberAnimation(i);
+        await Future.delayed(const Duration(milliseconds: 3500)); // Warte bis Animation fertig
       }
     }
   }
@@ -144,7 +191,9 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
         }
         _generatedTips[i].clear();
         _tipGenerated[i] = false;
+        _currentAnimatingNumbers[i] = 1;
         _tipAnimationControllers[i].reset();
+        _animationTimers[i].cancel();
       }
       _superzahlGenerated = false;
       _scheinSuperzahl = 0;
@@ -269,50 +318,37 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
           itemBuilder: (context, index) {
             final number = index + 1;
             final isSelected = _selectedNumbers[tipIndex][index];
+            final isAnimating = _tipAnimationControllers[tipIndex].isAnimating;
+            final currentAnimatingNumber = _currentAnimatingNumbers[tipIndex];
+            
             return GestureDetector(
               onTap: () => _toggleNumber(tipIndex, index),
-              child: AnimatedBuilder(
-                animation: _tipAnimationControllers[tipIndex],
-                builder: (context, child) {
-                  final animationValue = _tipAnimationControllers[tipIndex].value;
-                  final isAnimating = _tipAnimationControllers[tipIndex].isAnimating;
-                  final shouldAnimate = isAnimating && _tipGenerated[tipIndex] &&
-                      _generatedTips[tipIndex].contains(number);
-                  
-                  // Sequenzielle Animation: Jede Zahl erscheint nacheinander
-                  final numberIndex = _generatedTips[tipIndex].indexOf(number);
-                  final numberAnimation = numberIndex >= 0 ? 
-                      (animationValue * 7).clamp(numberIndex * 0.8, (numberIndex + 1) * 0.8) : 0.0;
-                  final isNumberVisible = !isAnimating || numberAnimation > numberIndex;
-                  
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: shouldAnimate && !isNumberVisible ? Colors.yellow[400] : 
-                            (isSelected ? Colors.yellow[300] : Colors.yellow[100]),
-                      border: Border.all(color: Colors.grey.shade400),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: Center(
-                      child: isSelected 
-                        ? const Text(
-                            '✗',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : Text(
-                            number.toString(),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: shouldAnimate && !isNumberVisible ? Colors.transparent : Colors.red[900],
-                            ),
-                          ),
-                    ),
-                  );
-                },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isAnimating && currentAnimatingNumber == number ? Colors.yellow[400] : 
+                        (isSelected ? Colors.yellow[300] : Colors.yellow[100]),
+                  border: Border.all(color: Colors.grey.shade400),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: Center(
+                  child: isSelected 
+                    ? const Text(
+                        '✗',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : Text(
+                        number.toString(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red[900],
+                        ),
+                      ),
+                ),
               ),
             );
           },
@@ -348,26 +384,17 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: AnimatedBuilder(
-                animation: _tipAnimationControllers[tipIndex],
-                builder: (context, child) {
-                  final animationValue = _tipAnimationControllers[tipIndex].value;
-                  final visibleCount = (_generatedTips[tipIndex].length * animationValue).ceil();
-                  final visibleNumbers = _generatedTips[tipIndex].take(visibleCount).toList();
-                  
-                  return Text(
-                    visibleNumbers.isNotEmpty 
-                      ? 'Zahlen: ${visibleNumbers.join(', ')}'
-                      : 'Noch keine Zahlen',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                  );
-                },
+              child: Text(
+                _generatedTips[tipIndex].isNotEmpty 
+                  ? 'Zahlen: ${_generatedTips[tipIndex].join(', ')}'
+                  : 'Noch keine Zahlen',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
               ),
             ),
             const SizedBox(height: 6),
