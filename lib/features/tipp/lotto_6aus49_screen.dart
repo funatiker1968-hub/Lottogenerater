@@ -11,28 +11,32 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
   final List<List<bool>> _selectedNumbers = List.generate(12, (_) => List.filled(49, false));
   final List<List<int>> _generatedTips = List.generate(12, (_) => []);
   final List<bool> _tipGenerated = List.filled(12, false);
-  int _scheinSuperzahl = 0; // NUR EINE Superzahl pro SCHEIN
+  int _scheinSuperzahl = 0;
   bool _superzahlGenerated = false;
   late AnimationController _superzahlAnimationController;
-  late AnimationController _numbersAnimationController;
+  late List<AnimationController> _tipAnimationControllers;
 
   @override
   void initState() {
     super.initState();
     _superzahlAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 3000),
       vsync: this,
     );
-    _numbersAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 4000),
-      vsync: this,
+    _tipAnimationControllers = List.generate(12, (index) => 
+      AnimationController(
+        duration: const Duration(milliseconds: 4000),
+        vsync: this,
+      )
     );
   }
 
   @override
   void dispose() {
     _superzahlAnimationController.dispose();
-    _numbersAnimationController.dispose();
+    for (final controller in _tipAnimationControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -42,11 +46,12 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
 
   void _generateSuperzahl() {
     if (!_superzahlGenerated) {
-      setState(() {
-        _scheinSuperzahl = DateTime.now().millisecond % 10;
-        _superzahlGenerated = true;
+      _scheinSuperzahl = DateTime.now().millisecond % 10;
+      _superzahlAnimationController.forward(from: 0.0).then((_) {
+        setState(() {
+          _superzahlGenerated = true;
+        });
       });
-      _superzahlAnimationController.forward(from: 0.0);
     }
   }
 
@@ -66,40 +71,94 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
         _generateSuperzahl();
       }
 
-      // Generieren - nur fehlende Zahlen ergänzen
+      // Zahlen generieren
+      final currentCount = _generatedTips[tipIndex].length;
+      final numbersNeeded = 6 - currentCount;
+      
+      if (numbersNeeded > 0) {
+        final availableNumbers = List.generate(49, (index) => index + 1)
+          ..removeWhere((number) => _generatedTips[tipIndex].contains(number));
+        availableNumbers.shuffle();
+        final newNumbers = availableNumbers.take(numbersNeeded).toList()..sort();
+
+        for (final number in newNumbers) {
+          _selectedNumbers[tipIndex][number - 1] = true;
+          _generatedTips[tipIndex].add(number);
+        }
+        _generatedTips[tipIndex].sort();
+      }
+      
       setState(() {
-        final currentCount = _generatedTips[tipIndex].length;
+        _tipGenerated[tipIndex] = true;
+      });
+
+      // Animation mit Verzögerung starten
+      await Future.delayed(Duration(milliseconds: tipIndex * 500));
+      _tipAnimationControllers[tipIndex].forward(from: 0.0);
+    }
+  }
+
+  void _generateAllTips() async {
+    // Superzahl zuerst
+    if (!_superzahlGenerated) {
+      _generateSuperzahl();
+      await Future.delayed(const Duration(milliseconds: 3200));
+    }
+
+    // Dann alle Tipps nacheinander mit Verzögerung
+    for (int i = 0; i < 12; i++) {
+      if (!_tipGenerated[i]) {
+        // Zahlen generieren
+        final currentCount = _generatedTips[i].length;
         final numbersNeeded = 6 - currentCount;
         
         if (numbersNeeded > 0) {
           final availableNumbers = List.generate(49, (index) => index + 1)
-            ..removeWhere((number) => _generatedTips[tipIndex].contains(number));
+            ..removeWhere((number) => _generatedTips[i].contains(number));
           availableNumbers.shuffle();
           final newNumbers = availableNumbers.take(numbersNeeded).toList()..sort();
 
           for (final number in newNumbers) {
-            _selectedNumbers[tipIndex][number - 1] = true;
-            _generatedTips[tipIndex].add(number);
+            _selectedNumbers[i][number - 1] = true;
+            _generatedTips[i].add(number);
           }
-          _generatedTips[tipIndex].sort();
+          _generatedTips[i].sort();
         }
-        _tipGenerated[tipIndex] = true;
-      });
+        
+        setState(() {
+          _tipGenerated[i] = true;
+        });
 
-      // Zahlen-Animation starten
-      _numbersAnimationController.forward(from: 0.0);
+        // Animation mit Verzögerung starten
+        _tipAnimationControllers[i].forward(from: 0.0);
+        await Future.delayed(const Duration(milliseconds: 800));
+      }
     }
+  }
+
+  void _clearAll() {
+    setState(() {
+      for (int i = 0; i < 12; i++) {
+        for (int j = 0; j < 49; j++) {
+          _selectedNumbers[i][j] = false;
+        }
+        _generatedTips[i].clear();
+        _tipGenerated[i] = false;
+        _tipAnimationControllers[i].reset();
+      }
+      _superzahlGenerated = false;
+      _scheinSuperzahl = 0;
+      _superzahlAnimationController.reset();
+    });
   }
 
   void _toggleNumber(int tipIndex, int number) {
     if (!_tipGenerated[tipIndex] || _selectedNumbers[tipIndex][number]) {
       setState(() {
         if (_selectedNumbers[tipIndex][number]) {
-          // Zahl abwählen
           _selectedNumbers[tipIndex][number] = false;
           _generatedTips[tipIndex].remove(number + 1);
         } else if (_canSelectNumber(tipIndex)) {
-          // Zahl auswählen (nur wenn < 6)
           _selectedNumbers[tipIndex][number] = true;
           _generatedTips[tipIndex].add(number + 1);
           _generatedTips[tipIndex].sort();
@@ -112,10 +171,14 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
     return AnimatedBuilder(
       animation: _superzahlAnimationController,
       builder: (context, child) {
+        final animationValue = _superzahlAnimationController.value;
+        final isAnimating = _superzahlAnimationController.isAnimating;
+        final currentNumber = (animationValue * 40 % 10).floor(); // 0-9
+        
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.blue[100], // Hellblau
+            color: Colors.blue[100],
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.blue[300]!),
           ),
@@ -142,15 +205,13 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
                 ),
                 itemCount: 10,
                 itemBuilder: (context, index) {
-                  final isAnimating = _superzahlAnimationController.isAnimating;
-                  final isSelected = _superzahlGenerated && _scheinSuperzahl == index;
-                  final shouldHighlight = isAnimating && 
-                      (_superzahlAnimationController.value * 20).floor() % 10 == index;
+                  final isFinalNumber = _superzahlGenerated && _scheinSuperzahl == index;
+                  final isHighlighted = isAnimating && currentNumber == index;
                   
                   return Container(
                     decoration: BoxDecoration(
-                      color: shouldHighlight ? Colors.red : 
-                            isSelected ? Colors.blue[300] : Colors.blue[100],
+                      color: isFinalNumber ? Colors.blue[300] : 
+                            isHighlighted ? Colors.red : Colors.blue[100],
                       border: Border.all(color: Colors.blue[400]!),
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -160,7 +221,7 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : Colors.blue[900],
+                          color: isFinalNumber ? Colors.white : Colors.blue[900],
                         ),
                       ),
                     ),
@@ -169,11 +230,13 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
               ),
               const SizedBox(height: 8),
               Text(
-                _superzahlGenerated ? 'Superzahl: $_scheinSuperzahl' : 'Noch nicht generiert',
+                _superzahlGenerated ? 'Superzahl: $_scheinSuperzahl' : 
+                isAnimating ? 'Lauflicht...' : 'Noch nicht generiert',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: _superzahlGenerated ? Colors.red : Colors.grey,
+                  color: _superzahlGenerated ? Colors.red : 
+                        isAnimating ? Colors.orange : Colors.grey,
                 ),
               ),
             ],
@@ -185,14 +248,14 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
 
   Widget _buildNumberGrid(int tipIndex, BuildContext context) {
     return Container(
-      height: 200, // Feste Höhe für Scrollbarkeit
+      height: 200,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Colors.yellow[100],
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.yellow[700]!),
       ),
-      child: SingleChildScrollView( // Scrollen für Zahlen 1-49
+      child: SingleChildScrollView(
         child: GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -209,18 +272,23 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
             return GestureDetector(
               onTap: () => _toggleNumber(tipIndex, index),
               child: AnimatedBuilder(
-                animation: _numbersAnimationController,
+                animation: _tipAnimationControllers[tipIndex],
                 builder: (context, child) {
-                  final isAnimating = _numbersAnimationController.isAnimating;
+                  final animationValue = _tipAnimationControllers[tipIndex].value;
+                  final isAnimating = _tipAnimationControllers[tipIndex].isAnimating;
                   final shouldAnimate = isAnimating && _tipGenerated[tipIndex] &&
                       _generatedTips[tipIndex].contains(number);
-                  final animationValue = _numbersAnimationController.value;
+                  
+                  // Sequenzielle Animation: Jede Zahl erscheint nacheinander
+                  final numberIndex = _generatedTips[tipIndex].indexOf(number);
+                  final numberAnimation = numberIndex >= 0 ? 
+                      (animationValue * 7).clamp(numberIndex * 0.8, (numberIndex + 1) * 0.8) : 0.0;
+                  final isNumberVisible = !isAnimating || numberAnimation > numberIndex;
                   
                   return Container(
                     decoration: BoxDecoration(
-                      color: shouldAnimate && (animationValue * 10).floor() % 2 == 0 
-                          ? Colors.yellow[400] 
-                          : (isSelected ? Colors.yellow[300] : Colors.yellow[100]),
+                      color: shouldAnimate && !isNumberVisible ? Colors.yellow[400] : 
+                            (isSelected ? Colors.yellow[300] : Colors.yellow[100]),
                       border: Border.all(color: Colors.grey.shade400),
                       borderRadius: BorderRadius.circular(2),
                     ),
@@ -238,8 +306,8 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
                             number.toString(),
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.red[900],
                               fontWeight: FontWeight.bold,
+                              color: shouldAnimate && !isNumberVisible ? Colors.transparent : Colors.red[900],
                             ),
                           ),
                     ),
@@ -280,17 +348,26 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
-                _generatedTips[tipIndex].isNotEmpty 
-                  ? 'Zahlen: ${_generatedTips[tipIndex].join(', ')}'
-                  : 'Noch keine Zahlen',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
+              child: AnimatedBuilder(
+                animation: _tipAnimationControllers[tipIndex],
+                builder: (context, child) {
+                  final animationValue = _tipAnimationControllers[tipIndex].value;
+                  final visibleCount = (_generatedTips[tipIndex].length * animationValue).ceil();
+                  final visibleNumbers = _generatedTips[tipIndex].take(visibleCount).toList();
+                  
+                  return Text(
+                    visibleNumbers.isNotEmpty 
+                      ? 'Zahlen: ${visibleNumbers.join(', ')}'
+                      : 'Noch keine Zahlen',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                  );
+                },
               ),
             ),
             const SizedBox(height: 6),
@@ -334,7 +411,6 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
           padding: const EdgeInsets.all(12),
           child: Column(
             children: [
-              // Superzahl Bereich
               _buildSuperzahlGrid(),
               const SizedBox(height: 12),
               
@@ -348,7 +424,6 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
               ),
               const SizedBox(height: 12),
               
-              // Tipps Bereich mit Scrollen
               Expanded(
                 child: isPortrait
                   ? GridView.builder(
@@ -384,24 +459,12 @@ class _Lotto6aus49ScreenState extends State<Lotto6aus49Screen> with TickerProvid
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     ElevatedButton.icon(
-                      onPressed: () {
-                        for (int i = 0; i < 12; i++) {
-                          if (!_tipGenerated[i]) {
-                            _generateTip(i);
-                          }
-                        }
-                      },
+                      onPressed: _generateAllTips,
                       icon: const Icon(Icons.auto_mode, size: 18),
                       label: const Text('Alle generieren'),
                     ),
                     ElevatedButton.icon(
-                      onPressed: () {
-                        for (int i = 0; i < 12; i++) {
-                          if (_tipGenerated[i]) {
-                            _generateTip(i);
-                          }
-                        }
-                      },
+                      onPressed: _clearAll,
                       icon: const Icon(Icons.delete, size: 18),
                       label: const Text('Alle löschen'),
                     ),
