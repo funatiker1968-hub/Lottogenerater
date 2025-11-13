@@ -25,13 +25,7 @@ class HomeScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-              // App korrekt beenden
               Navigator.of(context).pop();
-              Future.delayed(Duration.zero, () {
-                // Flutter App komplett schließen
-                // In Android: App wird beendet
-                // In iOS: App geht in Hintergrund
-              });
             },
             child: const Text('Verlassen'),
           ),
@@ -104,7 +98,11 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lottogenerator'),
+        title: Consumer<LanguageService>(
+          builder: (context, languageService, child) {
+            return Text(languageService.appTitle);
+          },
+        ),
         backgroundColor: Colors.blue[400],
         foregroundColor: Colors.white,
         actions: [
@@ -143,20 +141,29 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Willkommen beim Lottogenerator',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Wählen Sie eine Lotterie aus:',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
+            Consumer<LanguageService>(
+              builder: (context, languageService, child) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Willkommen beim Lottogenerator',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Wählen Sie eine Lotterie aus:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 20),
             Expanded(
@@ -197,7 +204,12 @@ class HomeScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatisticsScreen())),
+                onPressed: () => Navigator.push(
+                  context, 
+                  MaterialPageRoute(
+                    builder: (_) => const StatisticsScreen(lotteryType: 'all')
+                  )
+                ),
                 icon: const Icon(Icons.analytics),
                 label: const Text('STATISTIKEN ANZEIGEN'),
                 style: ElevatedButton.styleFrom(
