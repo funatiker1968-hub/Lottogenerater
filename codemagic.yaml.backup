@@ -1,0 +1,30 @@
+workflows:
+  lottogenerator-android:
+    name: Lottogenerator Android Build
+    environment:
+      groups:
+        - google_play
+      vars:
+        PACKAGE_NAME: "com.example.lottogenerator_v3"
+    scripts:
+      - name: Flutter Version prüfen
+        script: |
+          flutter --version
+      - name: Flutter Dependencies installieren
+        script: |
+          flutter pub get
+      - name: Flutter Analyzer ausführen
+        script: |
+          # Ignoriere Info-Warnungen, nur Errors stoppen den Build
+          flutter analyze --no-pub --no-fatal-infos
+      - name: Android Build erstellen
+        script: |
+          flutter build apk --release
+          flutter build appbundle --release
+    artifacts:
+      - build/app/outputs/flutter-apk/**/*.apk
+      - build/app/outputs/bundle/**/*.aab
+    publishing:
+      email:
+        recipients:
+          - funatiker1968@gmail.com
