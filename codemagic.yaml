@@ -15,7 +15,7 @@ workflows:
           flutter pub get
       - name: Flutter Analyzer ausführen
         script: |
-          # Ignoriere Info-Warnungen, nur Errors stoppen den Build
+          # WICHTIG: --no-fatal-infos ignoriert Info-Issues
           flutter analyze --no-pub --no-fatal-infos
       - name: Android Build erstellen
         script: |
