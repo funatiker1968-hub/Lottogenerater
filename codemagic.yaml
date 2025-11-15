@@ -1,11 +1,11 @@
+# Codemagic Build Configuration - Original Workflow mit Flutter 3.22.0
 workflows:
   lottogenerator-android:
-    name: Lottogenerator Android Build
+    name: Lottogenerator Android
     environment:
-      groups:
-        - google_play
-      vars:
-        PACKAGE_NAME: "com.example.lottogenerator_v3"
+      flutter: "3.22.0"  # Explizit stabile Version
+      xcode: latest
+      cocoapods: default
     scripts:
       - name: Flutter Version prüfen
         script: |
