@@ -177,7 +177,7 @@ class HomeScreen extends StatelessWidget {
                     'LOTTO 6aus49',
                     '12 Tipps\n6 aus 49 + Superzahl',
                     Colors.yellow[700]!,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Lotto6Aus49Screen())),
+                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Lotto6aus49Screen())),
                   ),
                   _buildLotteryCard(
                     'EUROJACKPOT',

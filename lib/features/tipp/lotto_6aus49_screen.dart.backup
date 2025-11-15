@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
+import 'package:lottogenerator/core/models/lotto_model.dart';
 
 class Lotto6Aus49Screen extends StatefulWidget {
   @override
