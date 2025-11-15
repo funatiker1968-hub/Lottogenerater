@@ -31,7 +31,7 @@ class _Lotto6Aus49ScreenState extends State<Lotto6Aus49Screen> {
           });
         }
         // Letzter Durchlauf langsamer für finalen Stop
-        int delay = (cycle == cycles - 1) ? 200 : 100;
+        int delay = (cycle == cycles - 1 && i == finalSuperzahl) ? 500 : (cycle == cycles - 1) ? 150 : 100;
         await Future.delayed(Duration(milliseconds: delay));
       }
     }
@@ -59,7 +59,7 @@ class _Lotto6Aus49ScreenState extends State<Lotto6Aus49Screen> {
     finalNumbers.sort();
 
     // Animation beschleunigt (2x schneller)
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 10; i++) {
       if (mounted) {
         setState(() {
           currentAnimationNumbers = List.generate(6, (_) => random.nextInt(49) + 1);
