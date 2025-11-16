@@ -1,29 +1,33 @@
-# Codemagic Build Configuration - Original Workflow mit Flutter 3.22.0
+# Codemagic Build Configuration – Flutter 3.22.0 Stable (Android APK)
+
 workflows:
   lottogenerator-android:
-    name: Lottogenerator Android
+    name: Lottogenerator Android Build
     environment:
-      flutter: "3.22.0"  # Explizit stabile Version
-      xcode: latest
-      cocoapods: default
+      flutter: "3.22.0"
+      vars:
+        PACKAGE_NAME: "com.example.lottogenerator_v3"
+
     scripts:
       - name: Flutter Version prüfen
         script: |
           flutter --version
-      - name: Flutter Dependencies installieren
+
+      - name: Dependencies installieren
         script: |
           flutter pub get
-      - name: Flutter Analyzer ausführen
+
+      - name: Analyzer laufen lassen (Info-Warnungen ignorieren)
         script: |
-          # WICHTIG: --no-fatal-infos ignoriert Info-Issues
           flutter analyze --no-pub --no-fatal-infos
-      - name: Android Build erstellen
+
+      - name: Release APK bauen
         script: |
           flutter build apk --release
-          flutter build appbundle --release
+
     artifacts:
-      - build/app/outputs/flutter-apk/**/*.apk
-      - build/app/outputs/bundle/**/*.aab
+      - build/app/outputs/flutter-apk/app-release.apk
+
     publishing:
       email:
         recipients:
